@@ -4,12 +4,12 @@
  * @returns {number} - сумма выручки
  */
 function calculateSimpleRevenue(purchase) {
-    if (!purchase || !purchase.items || !Array.isArray(purchase.items)) {
+    if (!purchase?.items || !Array.isArray(purchase.items)) {
         throw new Error("Invalid purchase data structure");
     }
 
     return purchase.items.reduce((sum, item) => {
-        if (typeof item.sale_price !== 'number' || typeof item.quantity !== 'number') {
+        if (typeof item?.sale_price !== 'number' || typeof item?.quantity !== 'number') {
             throw new Error("Invalid item data structure");
         }
         return sum + item.sale_price * item.quantity;
@@ -30,7 +30,7 @@ function calculateBonusByProfit(index, total, seller) {
     if (index < 0 || index >= total) {
         throw new Error("Index out of range");
     }
-    if (typeof seller.profit !== 'number') {
+    if (typeof seller?.profit !== 'number') {
         throw new Error("Seller profit must be a number");
     }
 
@@ -61,34 +61,38 @@ function analyzeSalesData(data, options) {
     if (typeof options.calculateBonus !== 'function') throw new Error("calculateBonus function is required");
 
     // Создаем структуры для быстрого доступа
-    const sellersMap = data.sellers.reduce((acc, seller) => {
-        if (!seller.id || !seller.first_name || !seller.last_name) throw new Error("Invalid seller structure");
-        acc[seller.id] = seller;
-        return acc;
-    }, {});
+    const sellersMap = {};
+    const productsMap = {};
 
-    const productsMap = data.products.reduce((acc, product) => {
-        if (!product.sku || !product.name || typeof product.purchase_price !== 'number') {
+    data.sellers.forEach(seller => {
+        if (!seller?.id || !seller?.first_name || !seller?.last_name) {
+            throw new Error("Invalid seller structure");
+        }
+        sellersMap[seller.id] = seller;
+    });
+
+    data.products.forEach(product => {
+        if (!product?.sku || !product?.name || typeof product?.purchase_price !== 'number') {
             throw new Error("Invalid product structure");
         }
-        acc[product.sku] = product;
-        return acc;
-    }, {});
+        productsMap[product.sku] = product;
+    });
 
     // Собираем статистику по продавцам
-    const sellersStats = data.purchase_records.reduce((acc, purchase) => {
-        if (!purchase.seller_id || !purchase.items || !Array.isArray(purchase.items)) {
+    const sellersStats = {};
+
+    data.purchase_records.forEach(purchase => {
+        if (!purchase?.seller_id || !purchase?.items || !Array.isArray(purchase.items)) {
             throw new Error("Invalid purchase structure");
         }
 
         const sellerId = purchase.seller_id;
-        if (!acc[sellerId]) {
-            const seller = sellersMap[sellerId];
-            if (!seller) return acc;
-            
-            acc[sellerId] = {
+        if (!sellersMap[sellerId]) return;
+
+        if (!sellersStats[sellerId]) {
+            sellersStats[sellerId] = {
                 seller_id: sellerId,
-                name: `${seller.first_name} ${seller.last_name}`,
+                name: `${sellersMap[sellerId].first_name} ${sellersMap[sellerId].last_name}`,
                 revenue: 0,
                 profit: 0,
                 sales_count: 0,
@@ -96,11 +100,11 @@ function analyzeSalesData(data, options) {
             };
         }
 
-        const sellerStat = acc[sellerId];
+        const sellerStat = sellersStats[sellerId];
         sellerStat.sales_count += 1;
 
         purchase.items.forEach(item => {
-            if (!item.sku || typeof item.sale_price !== 'number' || typeof item.quantity !== 'number') {
+            if (!item?.sku || typeof item?.sale_price !== 'number' || typeof item?.quantity !== 'number') {
                 throw new Error("Invalid item structure");
             }
 
@@ -108,32 +112,34 @@ function analyzeSalesData(data, options) {
             if (!product) return;
 
             const itemRevenue = item.sale_price * item.quantity;
-            const itemProfit = itemRevenue - product.purchase_price * item.quantity;
+            const itemCost = product.purchase_price * item.quantity;
+            const itemProfit = itemRevenue - itemCost;
 
             sellerStat.revenue += itemRevenue;
             sellerStat.profit += itemProfit;
 
             if (!sellerStat.products[item.sku]) {
                 sellerStat.products[item.sku] = {
+                    sku: item.sku,
+                    name: product.name,
                     count: 0,
-                    profit: 0,
-                    name: product.name
+                    profit: 0
                 };
             }
             sellerStat.products[item.sku].count += item.quantity;
             sellerStat.products[item.sku].profit += itemProfit;
         });
-
-        return acc;
-    }, {});
+    });
 
     // Сортируем продавцов по profit (по убыванию)
     const sortedSellers = Object.values(sellersStats).sort((a, b) => b.profit - a.profit);
 
     // Добавляем бонусы и топ товары
     return sortedSellers.map((seller, index) => {
-        const sellerInfo = sellersMap[seller.seller_id];
-        sellerInfo.profit = seller.profit; // Добавляем profit для расчета бонуса
+        const sellerInfo = {
+            ...sellersMap[seller.seller_id],
+            profit: seller.profit
+        };
 
         const topProducts = Object.values(seller.products)
             .sort((a, b) => b.profit - a.profit || b.count - a.count)
