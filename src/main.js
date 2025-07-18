@@ -1,4 +1,50 @@
 /**
+ * Функция для расчета выручки от продажи
+ * @param {Object} purchase - запись о покупке
+ * @returns {number} - сумма выручки
+ */
+function calculateSimpleRevenue(purchase) {
+    if (!purchase?.items || !Array.isArray(purchase.items)) {
+        throw new Error("Invalid purchase data structure");
+    }
+
+    return purchase.items.reduce((sum, item) => {
+        if (typeof item?.sale_price !== 'number' || typeof item?.quantity !== 'number') {
+            throw new Error("Invalid item data structure");
+        }
+        return sum + item.sale_price * item.quantity;
+    }, 0);
+}
+
+/**
+ * Функция для расчета бонусов продавцам
+ * @param {number} index - порядковый номер в отсортированном массиве
+ * @param {number} total - общее число продавцов
+ * @param {Object} seller - карточка продавца
+ * @returns {number} - сумма бонуса
+ */
+function calculateBonusByProfit(index, total, seller) {
+    if (typeof index !== 'number' || typeof total !== 'number' || !seller) {
+        throw new Error("Invalid input parameters");
+    }
+    if (index < 0 || index >= total) {
+        throw new Error("Index out of range");
+    }
+    if (typeof seller?.profit !== 'number') {
+        throw new Error("Seller profit must be a number");
+    }
+
+    let bonusRate;
+    if (index === 0) bonusRate = 0.15;
+    else if (index <= 2) bonusRate = 0.10;
+    else if (index === total - 2) bonusRate = 0.05;
+    else bonusRate = 0;
+
+    const positionMultiplier = seller.position === "Senior Seller" ? 1.5 : 1;
+    return parseFloat((seller.profit * bonusRate * positionMultiplier).toFixed(2));
+}
+
+/**
  * Функция для анализа данных продаж
  * @param {Object} data - входные данные
  * @param {Object} options - опции расчета
@@ -112,3 +158,10 @@ function analyzeSalesData(data, options) {
         };
     });
 }
+
+// Экспортируем все функции
+module.exports = {
+    calculateSimpleRevenue,
+    calculateBonusByProfit,
+    analyzeSalesData
+};
