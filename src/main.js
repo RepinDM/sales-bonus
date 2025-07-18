@@ -1,50 +1,4 @@
 /**
- * Функция для расчета выручки от продажи
- * @param {Object} purchase - запись о покупке
- * @returns {number} - сумма выручки
- */
-function calculateSimpleRevenue(purchase) {
-    if (!purchase?.items || !Array.isArray(purchase.items)) {
-        throw new Error("Invalid purchase data structure");
-    }
-
-    return purchase.items.reduce((sum, item) => {
-        if (typeof item?.sale_price !== 'number' || typeof item?.quantity !== 'number') {
-            throw new Error("Invalid item data structure");
-        }
-        return sum + item.sale_price * item.quantity;
-    }, 0);
-}
-
-/**
- * Функция для расчета бонусов продавцам
- * @param {number} index - порядковый номер в отсортированном массиве
- * @param {number} total - общее число продавцов
- * @param {Object} seller - карточка продавца
- * @returns {number} - сумма бонуса
- */
-function calculateBonusByProfit(index, total, seller) {
-    if (typeof index !== 'number' || typeof total !== 'number' || !seller) {
-        throw new Error("Invalid input parameters");
-    }
-    if (index < 0 || index >= total) {
-        throw new Error("Index out of range");
-    }
-    if (typeof seller?.profit !== 'number') {
-        throw new Error("Seller profit must be a number");
-    }
-
-    let bonusRate;
-    if (index === 0) bonusRate = 0.15;
-    else if (index <= 2) bonusRate = 0.10;
-    else if (index === total - 2) bonusRate = 0.05;
-    else bonusRate = 0;
-
-    const positionMultiplier = seller.position === "Senior Seller" ? 1.5 : 1;
-    return parseFloat((seller.profit * bonusRate * positionMultiplier).toFixed(2));
-}
-
-/**
  * Функция для анализа данных продаж
  * @param {Object} data - входные данные
  * @param {Object} options - опции расчета
@@ -121,13 +75,10 @@ function analyzeSalesData(data, options) {
             if (!sellerStat.products[item.sku]) {
                 sellerStat.products[item.sku] = {
                     sku: item.sku,
-                    name: product.name,
-                    count: 0,
-                    profit: 0
+                    quantity: 0
                 };
             }
-            sellerStat.products[item.sku].count += item.quantity;
-            sellerStat.products[item.sku].profit += itemProfit;
+            sellerStat.products[item.sku].quantity += item.quantity;
         });
     });
 
@@ -141,15 +92,14 @@ function analyzeSalesData(data, options) {
             profit: seller.profit
         };
 
-        const topProducts = Object.values(seller.products)
-            .sort((a, b) => b.profit - a.profit || b.count - a.count)
-            .slice(0, 3)
-            .map(product => ({
-                sku: product.sku,
-                name: product.name,
-                count: product.count,
-                profit: parseFloat(product.profit.toFixed(2))
-            }));
+        // Формируем топ товаров (сортировка по quantity и берем больше товаров)
+        const topProducts = Object.entries(seller.products)
+            .map(([sku, product]) => ({
+                sku,
+                quantity: product.quantity
+            }))
+            .sort((a, b) => b.quantity - a.quantity)
+            .slice(0, 10); // Берем до 10 товаров как в тесте
 
         return {
             seller_id: seller.seller_id,
